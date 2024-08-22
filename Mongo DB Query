@@ -1,0 +1,123 @@
+db.users.aggregate([
+  {
+    $facet: {
+      // Pipeline for users with their orders and product details
+      "userWithOrders": [
+        {
+          $lookup: {
+            from: "orders",               // Join with the Orders collection
+            localField: "_id",            // Field from users collection
+            foreignField: "user_id",      // Field from orders collection
+            as: "orderDetails"            // Output array field
+          }
+        },
+        {
+          $unwind: {
+            path: "$orderDetails",       // Unwind the orderDetails array
+            preserveNullAndEmptyArrays: true  // Preserve users with no orders
+          }
+        },
+        {
+          $lookup: {
+            from: "products",             // Join with the Products collection
+            localField: "orderDetails.product_id", // Field from orders collection
+            foreignField: "_id",          // Field from products collection
+            as: "productDetails"          // Output array field
+          }
+        },
+        {
+          $unwind: {
+            path: "$productDetails",      // Unwind the productDetails array
+            preserveNullAndEmptyArrays: true  // Preserve documents with no product details
+          }
+        },
+        {
+          $project: {
+            "name": 1,                     // User Name
+            "_id": 1,                      // User ID
+            "orderDetails._id": 1,         // Order ID
+            "orderDetails.order_date": 1,  // Order Date
+            "orderDetails.status": 1,      // Order Status
+            "productDetails.name": 1,      // Product Name
+            "productDetails.type": 1,      // Product Type
+            "productDetails.amount": 1     // Product Amount
+          }
+        }
+      ],
+      // Pipeline for users without orders
+      "userWithoutOrders": [
+        {
+          $lookup: {
+            from: "orders",               // Join with the Orders collection
+            localField: "_id",            // Field from users collection
+            foreignField: "user_id",      // Field from orders collection
+            as: "orderDetails"            // Output array field
+          }
+        },
+        {
+          $unwind: {
+            path: "$orderDetails",       // Unwind the orderDetails array
+            preserveNullAndEmptyArrays: true  // Preserve users with no orders
+          }
+        },
+        {
+          $lookup: {
+            from: "products",             // Join with the Products collection
+            localField: "orderDetails.product_id", // Field from orders collection
+            foreignField: "_id",          // Field from products collection
+            as: "productDetails"          // Output array field
+          }
+        },
+        {
+          $unwind: {
+            path: "$productDetails",      // Unwind the productDetails array
+            preserveNullAndEmptyArrays: true  // Preserve documents with no product details
+          }
+        },
+        {
+          $project: {
+            "name": 1,                     // User Name
+            "_id": 1,                      // User ID
+            "orderDetails._id": 1,         // Order ID
+            "orderDetails.order_date": 1,  // Order Date
+            "orderDetails.status": 1,      // Order Status
+            "productDetails.name": 1,      // Product Name
+            "productDetails.type": 1,      // Product Type
+            "productDetails.amount": 1     // Product Amount
+          }
+        }
+      ]
+    }
+  },
+  {
+    $project: {
+      "userWithOrders": {
+        $filter: {
+          input: "$userWithOrders",
+          as: "user",
+          cond: { $ne: ["$$user._id", ""] }
+        }
+      },
+      "userWithoutOrders": {
+        $filter: {
+          input: "$userWithoutOrders",
+          as: "user",
+          cond: { $ne: ["$$user._id", ""] }
+        }
+      }
+    }
+  },
+  {
+    $project: {
+      results: {
+        $concatArrays: ["$userWithOrders", "$userWithoutOrders"]
+      }
+    }
+  },
+  {
+    $unwind: "$results"
+  },
+  {
+    $replaceRoot: { newRoot: "$results" }
+  }
+])
